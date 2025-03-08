@@ -1,0 +1,708 @@
+-- Function to draw rounded corners for a box
+local function DrawRoundedCorners(esp, pos, size, color, radius)
+    if not esp or not esp.RoundedCornerLines then return end
+    
+    -- Hide all rounded corner lines first
+    for i = 1, #esp.RoundedCornerLines do
+        if esp.RoundedCornerLines[i] then
+            esp.RoundedCornerLines[i].Visible = false
+        end
+    end
+    
+    local lineIndex = 1
+    local segmentCount = 8 -- Number of segments per corner
+    
+    -- Function to create a rounded corner
+    local function createRoundedCorner(centerX, centerY, startAngle, endAngle)
+        local angleStep = (endAngle - startAngle) / segmentCount
+        local prevX, prevY
+        
+        for i = 0, segmentCount do
+            local angle = startAngle + angleStep * i
+            local x = centerX + radius * math.cos(angle)
+            local y = centerY + radius * math.sin(angle)
+            
+            if i > 0 and lineIndex <= #esp.RoundedCornerLines then
+                local line = esp.RoundedCornerLines[lineIndex]
+                if line then
+                    line.From = Vector2.new(prevX, prevY)
+                    line.To = Vector2.new(x, y)
+                    line.Color = color
+                    line.Visible = true
+                    lineIndex = lineIndex + 1
+                end
+            end
+            
+            prevX, prevY = x, y
+        end
+    end
+    
+    -- Top Left Corner: 180° to 270° (π to 3π/2)
+    createRoundedCorner(pos.X + radius, pos.Y + radius, math.pi, 3 * math.pi / 2)
+    
+    -- Top Right Corner: 270° to 360° (3π/2 to 2π)
+    createRoundedCorner(pos.X + size.X - radius, pos.Y + radius, 3 * math.pi / 2, 2 * math.pi)
+    
+    -- Bottom Right Corner: 0° to 90° (0 to π/2)
+    createRoundedCorner(pos.X + size.X - radius, pos.Y + size.Y - radius, 0, math.pi / 2)
+    
+    -- Bottom Left Corner: 90° to 180° (π/2 to π)
+    createRoundedCorner(pos.X + radius, pos.Y + size.Y - radius, math.pi / 2, math.pi)
+end-- Function to update ESP corners
+local function UpdateCorners(esp, pos, size, color)
+    if not esp or not esp.Corners then return end
+    
+    local cornerSize = ESPConfig.CornerSize
+    
+    -- Set all corner colors
+    for i = 1, 8 do
+        if esp.Corners[i] then
+            esp.Corners[i].Color = color
+            esp.Corners[i].Visible = false  -- Hide first, then show selectively
+        end
+    end
+    
+    -- Top Left Corners
+    if esp.Corners[1] then
+        esp.Corners[1].From = Vector2.new(pos.X, pos.Y)
+        esp.Corners[1].To = Vector2.new(pos.X + cornerSize, pos.Y)
+        esp.Corners[1].Visible = true
+    end
+    
+    if esp.Corners[2] then
+        esp.Corners[2].From = Vector2.new(pos.X, pos.Y)
+        esp.Corners[2].To = Vector2.new(pos.X, pos.Y + cornerSize)
+        esp.Corners[2].Visible = true
+    end
+    
+    -- Top Right Corners
+    if esp.Corners[3] then
+        esp.Corners[3].From = Vector2.new(pos.X + size.X, pos.Y)
+        esp.Corners[3].To = Vector2.new(pos.X + size.X - cornerSize, pos.Y)
+        esp.Corners[3].Visible = true
+    end
+    
+    if esp.Corners[4] then
+        esp.Corners[4].From = Vector2.new(pos.X + size.X, pos.Y)
+        esp.Corners[4].To = Vector2.new(pos.X + size.X, pos.Y + cornerSize)
+        esp.Corners[4].Visible = true
+    end
+    
+    -- Bottom Left Corners
+    if esp.Corners[5] then
+        esp.Corners[5].From = Vector2.new(pos.X, pos.Y + size.Y)
+        esp.Corners[5].To = Vector2.new(pos.X + cornerSize, pos.Y + size.Y)
+        esp.Corners[5].Visible = true
+    end
+    
+    if esp.Corners[6] then
+        esp.Corners[6].From = Vector2.new(pos.X, pos.Y + size.Y)
+        esp.Corners[6].To = Vector2.new(pos.X, pos.Y + size.Y - cornerSize)
+        esp.Corners[6].Visible = true
+    end
+    
+    -- Bottom Right Corners
+    if esp.Corners[7] then
+        esp.Corners[7].From = Vector2.new(pos.X + size.X, pos.Y + size.Y)
+        esp.Corners[7].To = Vector2.new(pos.X + size.X - cornerSize, pos.Y + size.Y)
+        esp.Corners[7].Visible = true
+    end
+    
+    if esp.Corners[8] then
+        esp.Corners[8].From = Vector2.new(pos.X + size.X, pos.Y + size.Y)
+        esp.Corners[8].To = Vector2.new(pos.X + size.X, pos.Y + size.Y - cornerSize)
+        esp.Corners[8].Visible = true
+    end
+end
+
+-- Function to hide all ESP elements
+local function HideESP(esp)
+    if not esp then return end
+    
+    if esp.Box then esp.Box.Visible = false end
+    if esp.Border then esp.Border.Visible = false end
+    if esp.BoxFill then esp.BoxFill.Visible = false end
+    if esp.Name then esp.Name.Visible = false end
+    if esp.Distance then esp.Distance.Visible = false end
+    
+    -- Hide corners
+    if esp.Corners then
+        for i = 1, 8 do
+            if esp.Corners[i] then
+                esp.Corners[i].Visible = false
+            end
+        end
+    end
+    
+    -- Hide rounded corner lines
+    if esp.RoundedCornerLines then
+        for i = 1, #esp.RoundedCornerLines do
+            if esp.RoundedCornerLines[i] then
+                esp.RoundedCornerLines[i].Visible = false
+            end
+        end
+    end
+end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local ESPConfig = {
+    Enabled = false,
+    TeamCheck = false,
+    
+    -- Box Settings
+    ShowBox = false,
+    BoxColor = Color3.fromRGB(255, 0, 0), -- Red for enemies
+    BoxColorTeam = Color3.fromRGB(0, 255, 0), -- Green for teammates
+    BoxThickness = 1,
+    BoxStyle = "Corners", -- "Full" or "Corners"
+    CornerSize = 12, -- Size of corners in pixels (for Corners style)
+    RoundedCorners = false, -- Enable rounded corners for Full box style
+    RoundedRadius = 12, -- Radius of rounded corners
+    
+    -- Border Settings
+    ShowBorder = false,
+    BorderColor = Color3.fromRGB(0, 0, 0), -- Black border
+    BorderThickness = 1,
+    CenteredBorder = true, -- Centers border on the box edge (appears both inside and outside)
+    
+    -- Box Fill Settings
+    ShowBoxFill = false,
+    BoxFillColor = Color3.fromRGB(255, 0, 0), -- Red fill for enemies
+    BoxFillColorTeam = Color3.fromRGB(30, 30, 30), -- Green fill for teammates
+    BoxFillTransparency = 0.4, -- 0 = opaque, 1 = transparent
+    
+    -- Box Stability Settings
+    UseFixedSize = true, -- Use fixed box dimensions instead of dynamic sizing
+    FixedWidth = 3.5,    -- Width multiplier relative to character height (increased for better coverage)
+    FixedHeight = 5.5,   -- Height multiplier (increased for better coverage)
+    BoxPadding = 3,      -- Extra padding around the box in pixels
+    SmoothFactor = 0.5,  -- 0-1, higher means more smoothing (reduces jitter)
+    
+    -- Text Settings
+    ShowName = true,
+    ShowDistance = true,
+    TextColor = Color3.fromRGB(255, 255, 255),
+    TextSize = 14,
+    TextOutline = true,
+    OutlineColor = Color3.fromRGB(0, 0, 0),
+    UseStaticTextSize = true, -- Keep text size consistent regardless of distance
+    StaticTextScaling = true, -- Don't scale text with box size
+    
+    -- Text Position Settings
+    NamePosition = "Top", -- "Top", "Inside", "AboveBox"
+    DistancePosition = "Bottom", -- "Bottom", "Inside", "BelowBox"
+    TextOffset = 5, -- Distance from box edge
+    
+    -- Distance Limit
+    MaxDistance = 1000,
+}
+
+-- Container for all ESP objects
+local ESPObjects = {}
+
+-- Function to create new ESP objects for a player
+local function CreateESPObject(player)
+    local esp = {}
+    
+    -- Box fill (drawn behind everything)
+    esp.BoxFill = Drawing.new("Square")
+    esp.BoxFill.Visible = false
+    esp.BoxFill.Transparency = 1 - ESPConfig.BoxFillTransparency -- Drawing lib uses opposite transparency
+    esp.BoxFill.Thickness = 0
+    esp.BoxFill.Filled = true
+    
+    -- Box border (drawn over fill but behind box)
+    esp.Border = Drawing.new("Square")
+    esp.Border.Visible = false
+    esp.Border.Transparency = 1
+    esp.Border.Thickness = ESPConfig.BorderThickness
+    esp.Border.Filled = false
+    esp.Border.Color = ESPConfig.BorderColor
+    
+    -- Box part (drawn over border)
+    esp.Box = Drawing.new("Square")
+    esp.Box.Visible = false
+    esp.Box.Transparency = 1
+    esp.Box.Thickness = ESPConfig.BoxThickness
+    esp.Box.Filled = false
+    
+    -- Top text (Player Name)
+    esp.Name = Drawing.new("Text")
+    esp.Name.Visible = false
+    esp.Name.Size = ESPConfig.TextSize
+    esp.Name.Center = true
+    esp.Name.Outline = ESPConfig.TextOutline
+    esp.Name.OutlineColor = ESPConfig.OutlineColor
+    
+    -- Bottom text (Distance)
+    esp.Distance = Drawing.new("Text")
+    esp.Distance.Visible = false
+    esp.Distance.Size = ESPConfig.TextSize
+    esp.Distance.Center = true
+    esp.Distance.Outline = ESPConfig.TextOutline
+    esp.Distance.OutlineColor = ESPConfig.OutlineColor
+    
+    -- Store previous box position and size for smoothing
+    esp.PrevPos = Vector2.new(0, 0)
+    esp.PrevSize = Vector2.new(0, 0)
+    
+    ESPObjects[player] = esp
+    return esp
+end
+
+-- Function to remove ESP objects
+local function RemoveESPObject(player)
+    local esp = ESPObjects[player]
+    if esp then
+        for _, drawing in pairs(esp) do
+            if drawing and typeof(drawing) == "table" and drawing.Remove then
+                drawing:Remove()
+            end
+        end
+        ESPObjects[player] = nil
+    end
+end
+
+-- Check if a player is on the opposite team
+local function IsOnOppositeTeam(player)
+    if not ESPConfig.TeamCheck then
+        return true
+    end
+    
+    if player.Team ~= LocalPlayer.Team then
+        return true
+    end
+    
+    return false
+end
+
+-- Calculate the corners of the 3D box (with improved stability)
+local function CalculateBox(character)
+    if not character then return nil end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return nil end
+    
+    -- Generate a more stable and consistent box
+    local size
+    
+    if ESPConfig.UseFixedSize then
+        -- Use fixed dimensions for more stability
+        local baseHeight = 5 -- Standard Roblox character height
+        size = Vector3.new(
+            baseHeight * ESPConfig.FixedWidth / ESPConfig.FixedHeight, 
+            baseHeight, 
+            baseHeight * ESPConfig.FixedWidth / ESPConfig.FixedHeight
+        )
+    else
+        -- Get size based on character's size
+        size = Vector3.new(2, 5, 1) -- Default size
+        
+        -- Try to get actual size from character model
+        local head = character:FindFirstChild("Head")
+        local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+        local leg = character:FindFirstChild("RightUpperLeg") or character:FindFirstChild("RightLeg")
+        
+        if head and torso and leg then
+            -- Calculate height from head to leg bottom
+            local height = (head.Position.Y - leg.Position.Y) * 2
+            -- Adjust box
+            size = Vector3.new(height * 0.5, height, height * 0.5)
+        end
+    end
+    
+    -- Optional: Use rounded positions for more stability
+    local function round(num)
+        return math.floor(num + 0.5)
+    end
+    
+    -- Calculate the corners of the 3D box
+    local cf = hrp.CFrame
+    
+    -- Define box vertices at top and bottom only (simpler and more stable)
+    local topPoint = cf * CFrame.new(0, size.Y/2, 0)
+    local bottomPoint = cf * CFrame.new(0, -size.Y/2, 0)
+    
+    -- Convert 3D points to 2D screen positions
+    local topScreenPoint = Camera:WorldToViewportPoint(topPoint.Position)
+    local bottomScreenPoint = Camera:WorldToViewportPoint(bottomPoint.Position)
+    
+    -- Check if points are visible
+    if topScreenPoint.Z < 0 and bottomScreenPoint.Z < 0 then
+        return nil -- Both points behind camera
+    end
+    
+    -- Calculate screen position
+    local height = math.abs(topScreenPoint.Y - bottomScreenPoint.Y)
+    local width = height * (size.X / size.Y)
+    
+    -- Calculate screen positions
+    local center = Vector2.new((topScreenPoint.X + bottomScreenPoint.X) / 2, (topScreenPoint.Y + bottomScreenPoint.Y) / 2)
+    local boxSize = Vector2.new(width, height)
+    
+    -- Center the box
+    local position = Vector2.new(center.X - width/2, center.Y - height/2)
+    
+    -- Return box bounds
+    return {
+        TopLeft = position,
+        TopRight = Vector2.new(position.X + width, position.Y),
+        BottomLeft = Vector2.new(position.X, position.Y + height),
+        BottomRight = Vector2.new(position.X + width, position.Y + height),
+        Visible = true,
+        Center = Vector2.new(position.X + width/2, position.Y),
+        Bottom = Vector2.new(position.X + width/2, position.Y + height),
+        Width = width,
+        Height = height
+    }
+end
+
+-- Update ESP for a player
+local function UpdateESP(player, esp)
+    if not ESPConfig.Enabled or not esp then
+        if esp then HideESP(esp) end
+        return
+    end
+    
+    local character = player.Character
+    if not character or not character:IsDescendantOf(workspace) then
+        HideESP(esp)
+        return
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        HideESP(esp)
+        return
+    end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp or not hrp:IsDescendantOf(workspace) then
+        HideESP(esp)
+        return
+    end
+    
+    -- Calculate distance to player
+    local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
+    if distance > ESPConfig.MaxDistance then
+        HideESP(esp)
+        return
+    end
+    
+    -- Calculate box corners
+    local box = CalculateBox(character)
+    if not box or not box.Visible then
+        HideESP(esp)
+        return
+    end
+    
+    -- Apply smoothing to reduce jitter
+    local newPos = box.TopLeft
+    local newSize = Vector2.new(box.Width, box.Height)
+    
+    if esp.PrevPos and esp.PrevPos.X ~= 0 and ESPConfig.SmoothFactor > 0 then
+        -- Lerp between previous and current position for smoother movement
+        newPos = Vector2.new(
+            esp.PrevPos.X + (newPos.X - esp.PrevPos.X) * (1 - ESPConfig.SmoothFactor),
+            esp.PrevPos.Y + (newPos.Y - esp.PrevPos.Y) * (1 - ESPConfig.SmoothFactor)
+        )
+        
+        newSize = Vector2.new(
+            esp.PrevSize.X + (newSize.X - esp.PrevSize.X) * (1 - ESPConfig.SmoothFactor),
+            esp.PrevSize.Y + (newSize.Y - esp.PrevSize.Y) * (1 - ESPConfig.SmoothFactor)
+        )
+    end
+    
+    -- Save current values for next frame
+    if esp.PrevPos then
+        esp.PrevPos = newPos
+        esp.PrevSize = newSize
+    else
+        esp.PrevPos = Vector2.new(0, 0)
+        esp.PrevSize = Vector2.new(0, 0)
+    end
+    
+    -- Calculate text positioning values based on static settings
+    local centerX = newPos.X + newSize.X / 2
+    local topY = newPos.Y
+    local bottomY = newPos.Y + newSize.Y
+    
+    -- Calculate a static offset value that doesn't scale with distance
+    local staticOffset = ESPConfig.TextOffset
+    if ESPConfig.UseStaticTextSize and not ESPConfig.StaticTextScaling then
+        -- For completely static text, use a fixed pixel offset
+        staticOffset = ESPConfig.TextOffset
+    end
+    
+    -- Update team color
+    local boxColor, boxFillColor
+    if IsOnOppositeTeam(player) then
+        boxColor = ESPConfig.BoxColor
+        boxFillColor = ESPConfig.BoxFillColor
+    else
+        boxColor = ESPConfig.BoxColorTeam
+        boxFillColor = ESPConfig.BoxFillColorTeam
+    end
+    
+    -- Hide rounded corner lines
+    if esp.RoundedCornerLines then
+        for i = 1, #esp.RoundedCornerLines do
+            if esp.RoundedCornerLines[i] then
+                esp.RoundedCornerLines[i].Visible = false
+            end
+        end
+    end
+    
+    -- Hide corner lines
+    if esp.Corners then
+        for i = 1, 8 do
+            if esp.Corners[i] then
+                esp.Corners[i].Visible = false
+            end
+        end
+    end
+    
+    -- Update box, border, and fill based on box style
+    if ESPConfig.ShowBox then
+        -- Update box fill (same size as box, drawn first) for all styles
+        if ESPConfig.ShowBoxFill and esp.BoxFill then
+            esp.BoxFill.Visible = true
+            esp.BoxFill.Size = newSize
+            esp.BoxFill.Position = newPos
+            esp.BoxFill.Color = boxFillColor
+            esp.BoxFill.Transparency = 1 - ESPConfig.BoxFillTransparency
+        else
+            if esp.BoxFill then esp.BoxFill.Visible = false end
+        end
+        
+        -- Update based on box style
+        if ESPConfig.BoxStyle == "Corners" then
+            -- Use corners instead of full box
+            if esp.Box then esp.Box.Visible = false end
+            if esp.Border then esp.Border.Visible = false end
+            
+            -- Update corners
+            UpdateCorners(esp, newPos, newSize, boxColor)
+        else -- "Full" box (default)
+            -- Update border (centered on box edge)
+            if ESPConfig.ShowBorder and esp.Border then
+                esp.Border.Visible = true
+                
+                if ESPConfig.CenteredBorder then
+                    -- Creates a border that appears both inside and outside the box
+                    esp.Border.Size = newSize
+                    esp.Border.Position = newPos
+                    esp.Border.Thickness = ESPConfig.BorderThickness
+                else
+                    -- Traditional border that's slightly larger
+                    esp.Border.Size = Vector2.new(newSize.X + 2, newSize.Y + 2)
+                    esp.Border.Position = Vector2.new(newPos.X - 1, newPos.Y - 1)
+                    esp.Border.Thickness = ESPConfig.BorderThickness
+                end
+                
+                esp.Border.Color = ESPConfig.BorderColor
+            else
+                if esp.Border then esp.Border.Visible = false end
+            end
+            
+            -- Update main box (drawn last, on top)
+            if esp.Box then
+                esp.Box.Visible = true
+                esp.Box.Size = newSize
+                esp.Box.Position = newPos
+                esp.Box.Color = boxColor
+            end
+            
+            -- Add rounded corners if enabled
+            if ESPConfig.RoundedCorners and esp.RoundedCornerLines then
+                -- Hide the normal box
+                if esp.Box then esp.Box.Visible = false end
+                
+                -- Draw the rounded corners
+                DrawRoundedCorners(esp, newPos, newSize, boxColor, ESPConfig.RoundedRadius)
+            end
+        end
+    else
+        if esp.Box then esp.Box.Visible = false end
+        if esp.Border then esp.Border.Visible = false end
+        if esp.BoxFill then esp.BoxFill.Visible = false end
+        
+        -- Hide corners and rounded corner lines
+        HideESP(esp)
+    end
+    
+    -- Update name text with static size option
+    if ESPConfig.ShowName and esp.Name then
+        esp.Name.Visible = true
+        esp.Name.Text = player.Name
+        esp.Name.Color = ESPConfig.TextColor
+        
+        -- Keep text size static if configured
+        if ESPConfig.UseStaticTextSize then
+            esp.Name.Size = ESPConfig.TextSize
+        else
+            -- Scale text size with distance (closer = larger)
+            local scaleFactor = math.max(0.5, math.min(2, 500 / box.Distance))
+            esp.Name.Size = math.floor(ESPConfig.TextSize * scaleFactor)
+        end
+        
+        -- Position the name text according to configuration
+        if ESPConfig.NamePosition == "Top" then
+            -- Text at the top of the box
+            esp.Name.Position = Vector2.new(centerX, topY)
+        elseif ESPConfig.NamePosition == "Inside" then
+            -- Text inside the box at the top
+            esp.Name.Position = Vector2.new(centerX, topY + staticOffset)
+        elseif ESPConfig.NamePosition == "AboveBox" then
+            -- Text above the box
+            esp.Name.Position = Vector2.new(centerX, topY - staticOffset - esp.Name.TextBounds.Y)
+        end
+    else
+        if esp.Name then esp.Name.Visible = false end
+    end
+    
+    -- Update distance text with static size option
+    if ESPConfig.ShowDistance and esp.Distance then
+        esp.Distance.Visible = true
+        esp.Distance.Text = string.format("%d", distance)
+        esp.Distance.Color = ESPConfig.TextColor
+        
+        -- Keep text size static if configured
+        if ESPConfig.UseStaticTextSize then
+            esp.Distance.Size = ESPConfig.TextSize
+        else
+            -- Scale text size with distance (closer = larger)
+            local scaleFactor = math.max(0.5, math.min(2, 500 / box.Distance))
+            esp.Distance.Size = math.floor(ESPConfig.TextSize * scaleFactor)
+        end
+        
+        -- Position the distance text according to configuration
+        if ESPConfig.DistancePosition == "Bottom" then
+            -- Text at the bottom of the box
+            esp.Distance.Position = Vector2.new(centerX, bottomY)
+        elseif ESPConfig.DistancePosition == "Inside" then
+            -- Text inside the box at the bottom
+            esp.Distance.Position = Vector2.new(centerX, bottomY - staticOffset - esp.Distance.TextBounds.Y)
+        elseif ESPConfig.DistancePosition == "BelowBox" then
+            -- Text below the box
+            esp.Distance.Position = Vector2.new(centerX, bottomY + staticOffset)
+        end
+    else
+        if esp.Distance then esp.Distance.Visible = false end
+    end
+end
+
+-- Monitor characters for changes and cleanup
+local function SetupCharacterMonitoring(player, esp)
+    -- Store character monitoring connections
+    esp.Connections = esp.Connections or {}
+    
+    -- Clean up old connections
+    for _, connection in pairs(esp.Connections) do
+        if connection and typeof(connection) == "RBXScriptConnection" then
+            connection:Disconnect()
+        end
+    end
+    esp.Connections = {}
+    
+    -- Check if character exists
+    local character = player.Character
+    if not character then return end
+    
+    -- Monitor character removal
+    local characterRemovedConnection = character:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not character or not character:IsDescendantOf(workspace) then
+            esp.Box.Visible = false
+            esp.Border.Visible = false
+            esp.BoxFill.Visible = false
+            esp.Name.Visible = false
+            esp.Distance.Visible = false
+        end
+    end)
+    table.insert(esp.Connections, characterRemovedConnection)
+    
+    -- Monitor humanoid death
+    local humanoid = character:FindFirstChild("Humanoid")
+    if humanoid then
+        local humanoidDiedConnection = humanoid.Died:Connect(function()
+            esp.Box.Visible = false
+            esp.Border.Visible = false
+            esp.BoxFill.Visible = false
+            esp.Name.Visible = false
+            esp.Distance.Visible = false
+        end)
+        table.insert(esp.Connections, humanoidDiedConnection)
+    end
+end
+
+-- Create ESP for all existing players
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        local esp = CreateESPObject(player)
+        SetupCharacterMonitoring(player, esp)
+    end
+end
+
+-- Handle player joining
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        local esp = CreateESPObject(player)
+        
+        -- Monitor for character added
+        local characterAddedConnection = player.CharacterAdded:Connect(function(character)
+            SetupCharacterMonitoring(player, esp)
+        end)
+        
+        esp.Connections = esp.Connections or {}
+        table.insert(esp.Connections, characterAddedConnection)
+    end
+end)
+
+-- Handle player leaving
+Players.PlayerRemoving:Connect(function(player)
+    local esp = ESPObjects[player]
+    if esp then
+        -- Disconnect all connections
+        if esp.Connections then
+            for _, connection in pairs(esp.Connections) do
+                if connection and typeof(connection) == "RBXScriptConnection" then
+                    connection:Disconnect()
+                end
+            end
+        end
+        
+        -- Remove all drawing objects
+        for _, drawing in pairs(esp) do
+            if drawing and typeof(drawing) == "table" and drawing.Remove then
+                drawing:Remove()
+            end
+        end
+        
+        -- Remove from ESP objects table
+        ESPObjects[player] = nil
+    end
+end)
+
+-- Update ESP every frame
+RunService.RenderStepped:Connect(function()
+    for player, esp in pairs(ESPObjects) do
+        if player and esp then
+            UpdateESP(player, esp)
+        end
+    end
+end)
+
+-- Clean up when script is terminated
+game:BindToClose(function()
+    for player, _ in pairs(ESPObjects) do
+        RemoveESPObject(player)
+    end
+end)
+
+return ESPConfig
